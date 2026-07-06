@@ -328,8 +328,18 @@ const state = {
   anomalyShown: false,
   viewerNum: String(Math.floor(Math.random()*100)+900)
 };
-/* 再接続をまたいで蓄積される閲覧アーカイブ */
-const ARCHIVE = {};
+/* 再接続・再訪をまたいで蓄積される閲覧アーカイブ（localStorageに保存） */
+const LS_KEY="umr_archive_v1";
+const LS_SP_KEY="umr_sp_archive_v1";
+function loadStore(key){
+  try{ const v=localStorage.getItem(key); return v?JSON.parse(v):{}; }
+  catch(e){ return {}; }
+}
+function saveStore(key,obj){
+  try{ localStorage.setItem(key,JSON.stringify(obj)); }catch(e){}
+}
+const ARCHIVE = loadStore(LS_KEY);
+const SP_ARCHIVE_STORE = loadStore(LS_SP_KEY);
 
 /* ---------- ユーティリティ ---------- */
 function fmt(d){
@@ -1350,7 +1360,7 @@ const POOL = [
 
 /* ---------- 特別保管記録（収集済10件で解放） ---------- */
 const SP_UNLOCK = 10;
-const SP_ARCHIVE = {};
+const SP_ARCHIVE = SP_ARCHIVE_STORE;
 const SPECIAL = [
   {
     id:"UMR-CY-023",
@@ -1512,8 +1522,21 @@ function titleScreen(){
       <div class="title-sub">RECORD VIEWING TERMINAL</div>
       <div><button>接続する</button></div>
       <div class="title-note">※本端末の記録は全てフィクションです</div>
+      <div class="title-note" id="resetLine" style="margin-top:18px;cursor:pointer;opacity:.55">記録を初期化する</div>
     </div>`);
   wrap.querySelector("button").onclick=bootScreen;
+  const rl=wrap.querySelector("#resetLine");
+  rl.onclick=()=>{
+    if(rl.dataset.c){
+      for(const k in ARCHIVE) delete ARCHIVE[k];
+      for(const k in SP_ARCHIVE) delete SP_ARCHIVE[k];
+      saveStore(LS_KEY,ARCHIVE); saveStore(LS_SP_KEY,SP_ARCHIVE);
+      rl.textContent="初期化しました";
+    }else{
+      rl.dataset.c="1";
+      rl.textContent="もう一度押すと初期化します";
+    }
+  };
   $s.appendChild(wrap);
 }
 
@@ -1636,6 +1659,7 @@ async function specialDocScreen(r){
   await sleep(reduced?200:700);
 
   SP_ARCHIVE[r.id]=true;
+  saveStore(LS_SP_KEY,SP_ARCHIVE);
   $s.appendChild(el(`<hr class="hr">`));
   $s.appendChild(el(`<div class="doc">${r.body}</div>`));
   $s.appendChild(el(`<hr class="hr">`));
@@ -1648,6 +1672,7 @@ async function specialDocScreen(r){
 function docScreen(r){
   state.read[r.id]=true;
   ARCHIVE[r.id]=true;
+  saveStore(LS_KEY,ARCHIVE);
   if(!state.order.includes(r.id)) state.order.push(r.id);
   state.openTimes[r.id]=new Date();
 
@@ -1792,7 +1817,7 @@ async function endScreen(){
   /* ---- 外部共有 ---- */
   const got=Object.keys(ARCHIVE).length, total=POOL.length;
   /* ▼▼ 公開時にサイトURLへ差し替えてください ▼▼ */
-  const SITE_URL="";
+  const SITE_URL="https://room69419.github.io/mibunrui/";
   /* ▲▲ ここまで ▲▲ */
   const spShare=Object.keys(SP_ARCHIVE).length;
   const shareText=
